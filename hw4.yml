@@ -1,0 +1,68 @@
+- hosts: all
+  become: yes
+  become_user: root
+  vars: 
+    path_to_clone: "/home/devops/"
+    ansible_distribution_release: "bionic"
+
+  tasks:
+    - name: Add apt key for nodejs source
+      apt_key: url=https://deb.nodesource.com/gpgkey/nodesource.gpg.key
+
+    - name: Add repo for node source
+      apt_repository:
+              repo: 'deb https://deb.nodesource.com/node_0.10 {{ ansible_distribution_release }} main'
+              update_cache: yes
+
+    - name: Install npm and nodejs
+      apt: name={{ item }} state=present
+      with_items:
+              - npm
+              - nodejs
+
+    - name: Install forever
+      npm: name=forever global=yes state=present
+
+    - name: Install Git
+      apt:
+              name: git
+              state: present
+
+    - name: Clone the Repository
+      git:
+              repo: https://github.com/CSC-DevOps/App.git
+              dest: "{{ path_to_clone }}"
+
+    - name: Install npm packages
+      npm:
+              path={{ path_to_clone }}
+
+    - name: Check list of nodejs aps running
+      command: forever list
+      register: forever_list
+      changed_when: false
+
+    - name: Run application using forever
+      command: forever start {{ path_to_clone }}/main.js start
+      when: "forever_list.stdout.find('/home/devops/main.js') == -1"
+
+    - name: Ensure bash, openssl, openssh-client, openssh-server
+      apt: name={{ item }} update_cache=yes cache_valid_time=3600 state=latest
+      with_items:
+              - bash
+              - openssl
+              - openssh-client
+              - openssh-server
+
+    - name: Remove content in /tmp/*
+      file:
+              path: /tmp/
+              state: absent
+
+    - name: Restoring the folder tmp 
+      file:
+              path: /tmp
+              state: directory
+              mode: 0755
+      
+
